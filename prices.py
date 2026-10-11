@@ -1,9 +1,17 @@
 import yfinance as yf
 
-# Pick a company by its ticker symbol (AAPL = Apple)
-ticker = "AAPL"
 
-# Download the last 1 month of daily prices
-data = yf.Ticker(ticker).history(period="1mo")
+def get_prices(ticker, period="1mo"):
+    """Download daily prices for one ticker."""
+    data = yf.Ticker(ticker).history(period=period)
+    return data
 
-print(data[["Open", "Close", "Volume"]])
+
+if __name__ == "__main__":
+    ticker = input("Enter a ticker (e.g. AAPL): ").upper()
+    prices = get_prices(ticker)
+
+    if prices.empty:
+        print("No data found. Check the ticker and try again.")
+    else:
+        print(prices[["Open", "Close", "Volume"]])
