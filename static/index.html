@@ -6,28 +6,37 @@
     body { font-family: Arial, sans-serif; max-width: 700px; margin: 40px auto; }
     input { padding: 8px; font-size: 16px; }
     button { padding: 8px; font-size: 16px; }
+    table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+    th, td { border-bottom: 1px solid #ddd; padding: 8px; text-align: right; }
+    th:first-child, td:first-child { text-align: left; }
+    .pos { color: green; }
+    .neg { color: red; }
   </style>
 </head>
 <body>
   <h1>Stock Signal</h1>
   <input type="text" id="ticker" placeholder="Ticker, e.g. AAPL">
-  <button id="go">Get prices</button>
+  <button id="go">Get data</button>
   <p id="status"></p>
   <canvas id="chart"></canvas>
 
+  <h2>Earnings: expected vs actual</h2>
+  <p id="earn-status"></p>
+  <table id="earnings"></table>
+  <h2>History test: what did the price do afterwards?</h2>
+  <p id="hist-status"></p>
+  <div id="hist-summary"></div>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script>
     const tickerBox = document.getElementById("ticker");
     const goBtn = document.getElementById("go");
     const status = document.getElementById("status");
+    const earnStatus = document.getElementById("earn-status");
+    const table = document.getElementById("earnings");
     let chart = null;
 
-    goBtn.addEventListener("click", async function () {
-      const ticker = tickerBox.value.trim();
-      if (ticker === "") return;
-
-      status.textContent = "Loading...";
-
+    async function loadPrices(ticker) {
+      status.textContent = "Loading prices...";
       try {
         const response = await fetch("/prices/" + ticker);
         const data = await response.json();
@@ -43,7 +52,6 @@
         const values = data.prices.map(p => p.close);
 
         if (chart) chart.destroy();
-
         chart = new Chart(document.getElementById("chart"), {
           type: "line",
           data: {
@@ -59,6 +67,95 @@
       } catch (error) {
         status.textContent = "Something went wrong. Is the server running?";
       }
+    }
+
+    async function loadEarnings(ticker) {
+      earnStatus.textContent = "Loading earnings...";
+      table.innerHTML = "";
+      try {
+        const response = await fetch("/earnings/" + ticker);
+        const data = await response.json();
+
+        if (!response.ok) {
+          earnStatus.textContent = data.error;
+          return;
+        }
+
+        earnStatus.textContent = "Last " + data.earnings.length + " reports for " + data.ticker;
+
+        // Header row
+        const head = table.insertRow();
+        for (const title of ["Date", "Expected", "Actual", "Surprise", "Signal"]) {
+          const th = document.createElement("th");
+          th.textContent = title;
+          head.appendChild(th);
+        }
+
+        // One row per report
+        for (const e of data.earnings) {
+          const row = table.insertRow();
+          row.insertCell().textContent = e.date;
+          row.insertCell().textContent = e.expected;
+          row.insertCell().textContent = e.actual;
+
+          const surpriseCell = row.insertCell();
+          const signalCell = row.insertCell();
+
+          if (e.surprise === null) {
+            surpriseCell.textContent = "n/a";
+            signalCell.textContent = "-";
+          } else {
+            surpriseCell.textContent = e.surprise + "%";
+            if (e.surprise > 5) {
+              surpriseCell.className = "pos";
+              signalCell.textContent = "Positive surprise";
+            } else if (e.surprise < -5) {
+              surpriseCell.className = "neg";
+              signalCell.textContent = "Negative surprise";
+            } else {
+              signalCell.textContent = "In line";
+            }
+          }
+        }
+      } catch (error) {
+        earnStatus.textContent = "Something went wrong getting earnings.";
+      }
+    }
+    function describe(title, s) {
+      if (!s) return "<p><b>" + title + "</b><br>No cases found.</p>";
+      return "<p><b>" + title + "</b><br>" + s.count + " cases. " +
+        "Price higher 1 day later in " + s.up_day1 + " of them (average move " + s.avg_day1 + "%). " +
+        "Higher 5 days later in " + s.up_day5 + " (average " + s.avg_day5 + "%).</p>";
+    }
+
+    async function loadHistory(ticker) {
+      const histStatus = document.getElementById("hist-status");
+      const box = document.getElementById("hist-summary");
+      histStatus.textContent = "Running history test...";
+      box.innerHTML = "";
+      try {
+        const response = await fetch("/history/" + ticker);
+        const data = await response.json();
+
+        if (!response.ok) {
+          histStatus.textContent = data.error;
+          return;
+        }
+
+        histStatus.textContent = "Based on " + data.reports_used + " past reports for " + data.ticker;
+        box.innerHTML =
+          describe("Positive surprises (above +5%)", data.positive) +
+          describe("Negative surprises (below -5%)", data.negative);
+      } catch (error) {
+        histStatus.textContent = "Something went wrong running the history test.";
+      }
+    }
+    goBtn.addEventListener("click", function () {
+      const ticker = tickerBox.value.trim();
+      if (ticker === "") return;
+      loadPrices(ticker);
+      loadEarnings(ticker);
+      loadHistory(ticker);
     });
   </script>
 </body>
