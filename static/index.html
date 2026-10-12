@@ -3,10 +3,9 @@
 <head>
   <title>Stock Signal</title>
   <style>
-    body { font-family: Arial, sans-serif; max-width: 600px; margin: 40px auto; }
+    body { font-family: Arial, sans-serif; max-width: 700px; margin: 40px auto; }
     input { padding: 8px; font-size: 16px; }
     button { padding: 8px; font-size: 16px; }
-    pre { background: #f4f4f4; padding: 10px; overflow: auto; max-height: 300px; }
   </style>
 </head>
 <body>
@@ -14,20 +13,20 @@
   <input type="text" id="ticker" placeholder="Ticker, e.g. AAPL">
   <button id="go">Get prices</button>
   <p id="status"></p>
-  <pre id="output"></pre>
+  <canvas id="chart"></canvas>
 
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script>
     const tickerBox = document.getElementById("ticker");
     const goBtn = document.getElementById("go");
     const status = document.getElementById("status");
-    const output = document.getElementById("output");
+    let chart = null;
 
     goBtn.addEventListener("click", async function () {
       const ticker = tickerBox.value.trim();
       if (ticker === "") return;
 
       status.textContent = "Loading...";
-      output.textContent = "";
 
       try {
         const response = await fetch("/prices/" + ticker);
@@ -38,8 +37,25 @@
           return;
         }
 
-        status.textContent = "Got " + data.prices.length + " days for " + data.ticker;
-        output.textContent = JSON.stringify(data.prices, null, 2);
+        status.textContent = "Showing " + data.prices.length + " days for " + data.ticker;
+
+        const labels = data.prices.map(p => p.date);
+        const values = data.prices.map(p => p.close);
+
+        if (chart) chart.destroy();
+
+        chart = new Chart(document.getElementById("chart"), {
+          type: "line",
+          data: {
+            labels: labels,
+            datasets: [{
+              label: data.ticker + " closing price",
+              data: values,
+              borderColor: "steelblue",
+              tension: 0.2
+            }]
+          }
+        });
       } catch (error) {
         status.textContent = "Something went wrong. Is the server running?";
       }
