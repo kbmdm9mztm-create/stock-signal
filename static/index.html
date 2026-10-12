@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Stock Signal</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 600px; margin: 40px auto; }
+    input { padding: 8px; font-size: 16px; }
+    button { padding: 8px; font-size: 16px; }
+    pre { background: #f4f4f4; padding: 10px; overflow: auto; max-height: 300px; }
+  </style>
+</head>
+<body>
+  <h1>Stock Signal</h1>
+  <input type="text" id="ticker" placeholder="Ticker, e.g. AAPL">
+  <button id="go">Get prices</button>
+  <p id="status"></p>
+  <pre id="output"></pre>
+
+  <script>
+    const tickerBox = document.getElementById("ticker");
+    const goBtn = document.getElementById("go");
+    const status = document.getElementById("status");
+    const output = document.getElementById("output");
+
+    goBtn.addEventListener("click", async function () {
+      const ticker = tickerBox.value.trim();
+      if (ticker === "") return;
+
+      status.textContent = "Loading...";
+      output.textContent = "";
+
+      try {
+        const response = await fetch("/prices/" + ticker);
+        const data = await response.json();
+
+        if (!response.ok) {
+          status.textContent = data.error;
+          return;
+        }
+
+        status.textContent = "Got " + data.prices.length + " days for " + data.ticker;
+        output.textContent = JSON.stringify(data.prices, null, 2);
+      } catch (error) {
+        status.textContent = "Something went wrong. Is the server running?";
+      }
+    });
+  </script>
+</body>
+</html>

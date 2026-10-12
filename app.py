@@ -1,13 +1,27 @@
+import time
 from flask import Flask, jsonify
 from prices import get_prices
 
 app = Flask(__name__)
 
+cache = {}  # remembers answers: {ticker: (time_saved, data)}
+CACHE_SECONDS = 300  # remember for 5 minutes
+
+
+@app.route("/")
+def home():
+    return app.send_static_file("index.html")
+
 
 @app.route("/prices/<ticker>")
 def prices_route(ticker):
     ticker = ticker.upper()
-    data = get_prices(ticker)
+
+    if ticker in cache and time.time() - cache[ticker][0] < CACHE_SECONDS:
+        data = cache[ticker][1]
+    else:
+        data = get_prices(ticker)
+        cache[ticker] = (time.time(), data)
 
     if data.empty:
         return jsonify({"error": "No data found"}), 404
