@@ -51,7 +51,7 @@
         }
 
         status.textContent = "Showing " + data.prices.length + " days for " + data.ticker;
-
+        q.sort((a, b) => b.change - a.change);
         const labels = data.prices.map(p => p.date);
         const values = data.prices.map(p => p.close);
 
