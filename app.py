@@ -1,6 +1,6 @@
 import time
-from flask import Flask, jsonify
-from prices import get_prices , get_earnings
+from flask import Flask, jsonify, request
+from prices import get_prices , get_earnings, get_quote
 
 app = Flask(__name__)
 
@@ -125,5 +125,34 @@ def history_route(ticker):
         "positive": summarize(positive),
         "negative": summarize(negative),
     })
+quote_cache = {}
+QUOTE_SECONDS = 15  # reuse an answer for 15 seconds
+
+
+@app.route("/live")
+def live_page():
+    return app.send_static_file("live.html")
+
+
+@app.route("/quotes")
+def quotes_route():
+    raw = request.args.get("tickers", "")
+    tickers = [t.strip().upper() for t in raw.split(",") if t.strip()][:10]
+
+    results = []
+    for t in tickers:
+        cached = quote_cache.get(t)
+        if cached and time.time() - cached[0] < QUOTE_SECONDS:
+            q = cached[1]
+        else:
+            try:
+                q = get_quote(t)
+            except Exception:
+                q = None
+            quote_cache[t] = (time.time(), q)
+        if q:
+            results.append(q)
+
+    return jsonify({"quotes": results})
 if __name__ == "__main__":
     app.run(debug=True, port=8000)

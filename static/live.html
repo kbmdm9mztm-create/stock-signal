@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <p class="nav"><a href="/">Analysis</a> | <a href="/live">Live Stocks</a></p>
+  <title>Live Stocks</title>
+  <style>
+    .nav { margin-bottom: 20px; }
+.nav a { margin-right: 10px; color: steelblue; text-decoration: none; font-weight: bold; }
+.nav a:hover { text-decoration: underline; }
+    body { font-family: Arial, sans-serif; max-width: 700px; margin: 40px auto; }
+    input { padding: 8px; font-size: 16px; width: 60%; }
+    button { padding: 8px; font-size: 16px; }
+    #cards { display: flex; flex-wrap: wrap; gap: 10px; margin: 20px 0; }
+    .card { border: 1px solid #ddd; border-radius: 8px; padding: 10px 14px; min-width: 100px; }
+    .card b { font-size: 18px; }
+    .up { color: green; }
+    .down { color: red; }
+  </style>
+</head>
+<body>
+  <h1>Live Stocks</h1>
+  <input type="text" id="tickers" value="AAPL,MSFT,TSLA,NVDA,AMZN">
+  <button id="apply">Update list</button>
+  <p id="status"></p>
+  <div id="cards"></div>
+  <canvas id="chart"></canvas>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script>
+    const input = document.getElementById("tickers");
+    const status = document.getElementById("status");
+    const cards = document.getElementById("cards");
+    let chart = null;
+
+    async function refresh() {
+      try {
+        const response = await fetch("/quotes?tickers=" + encodeURIComponent(input.value));
+        const data = await response.json();
+        const q = data.quotes;
+
+        if (q.length === 0) {
+          status.textContent = "No data found. Check the tickers.";
+          return;
+        }
+
+        const labels = q.map(x => x.ticker);
+        const values = q.map(x => x.change);
+        const colors = values.map(v => v >= 0 ? "green" : "red");
+
+        if (!chart) {
+          chart = new Chart(document.getElementById("chart"), {
+            type: "bar",
+            data: {
+              labels: labels,
+              datasets: [{ label: "Change today (%)", data: values, backgroundColor: colors }]
+            },
+            options: { animation: { duration: 600 } }
+          });
+        } else {
+          chart.data.labels = labels;
+          chart.data.datasets[0].data = values;
+          chart.data.datasets[0].backgroundColor = colors;
+          chart.update();
+        }
+
+        cards.innerHTML = "";
+        for (const x of q) {
+          const card = document.createElement("div");
+          card.className = "card";
+
+          const name = document.createElement("div");
+          name.textContent = x.ticker;
+
+          const price = document.createElement("b");
+          price.textContent = x.price;
+
+          const change = document.createElement("div");
+          change.className = x.change >= 0 ? "up" : "down";
+          change.textContent = (x.change >= 0 ? "+" : "") + x.change + "%";
+
+          card.append(name, price, change);
+          cards.appendChild(card);
+        }
+
+        status.textContent = "Updated at " + new Date().toLocaleTimeString();
+      } catch (error) {
+        status.textContent = "Something went wrong. Is the server running?";
+      }
+    }
+
+    document.getElementById("apply").addEventListener("click", refresh);
+    refresh();
+    setInterval(refresh, 15000);
+  </script>
+</body>
+</html>
